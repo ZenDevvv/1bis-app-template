@@ -12,6 +12,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useSearchParams } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 
 export type SortDirection = "asc" | "desc" | null;
 
@@ -29,6 +37,7 @@ export interface DataTableColumn<T> {
 	filterOptions?: ColumnFilter[];
 	searchable?: boolean;
 	render?: (value: T[keyof T], row: T) => React.ReactNode;
+	className?: string; // Added for alignment support
 }
 
 export interface DataTableProps<T> {
@@ -255,10 +264,10 @@ export function DataTable<T extends Record<string, any>>({
 	const filteredAndSortedData = data;
 
 	return (
-		<div className={cn("w-full overflow-auto p-1", className)}>
-			<table className="w-full border-collapse">
-				<thead>
-					<tr className="border-b border-border bg-gray-100">
+		<div className={cn("rounded-md border bg-card", className)}>
+			<Table>
+				<TableHeader>
+					<TableRow>
 						{columns.map((column) => {
 							const state = columnStates[String(column.key)];
 							const hasActiveSortOrFilter =
@@ -274,32 +283,31 @@ export function DataTable<T extends Record<string, any>>({
 
 							if (!hasFeatures) {
 								return (
-									<th
+									<TableHead
 										key={String(column.key)}
-										className="text-left p-0 font-medium">
-										<div className="h-12 w-full px-4 flex items-center font-medium text-foreground text-sm">
-											{column.label}
-										</div>
-									</th>
+										className={cn(column.className)}>
+										{column.label}
+									</TableHead>
 								);
 							}
 
 							return (
-								<th key={String(column.key)} className="text-left p-0 font-medium">
+								<TableHead
+									key={String(column.key)}
+									className={cn("p-0", column.className)}>
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
 												variant="ghost"
 												className={cn(
-													"relative h-12 w-full justify-between !gap-1 !px-4 font-medium hover:text-foreground hover:bg-gray-200 cursor-pointer group",
-													hasActiveState &&
-														"text-primary underline hover:text-primary",
+													"relative h-10 w-full justify-between gap-1 px-4 font-medium hover:text-foreground hover:bg-muted cursor-pointer group rounded-none",
+													hasActiveState && "text-primary font-bold",
 												)}>
 												<span className="flex items-center gap-2">
 													{column.label}
 												</span>
 												<Funnel
-													className={`hidden group-hover:flex absolute right-4 ${hasActiveState && "text-primary flex"}`}
+													className={`h-3 w-3 hidden group-hover:flex absolute right-2 ${hasActiveState && "text-primary flex"}`}
 												/>
 											</Button>
 										</DropdownMenuTrigger>
@@ -447,40 +455,35 @@ export function DataTable<T extends Record<string, any>>({
 											)}
 										</DropdownMenuContent>
 									</DropdownMenu>
-								</th>
+								</TableHead>
 							);
 						})}
-					</tr>
-				</thead>
-				<tbody>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
 					{filteredAndSortedData.map((row, rowIndex) => (
-						<tr
+						<TableRow
 							key={rowIndex}
-							className={cn(
-								"border-b border-border hover:bg-secondary/80 transition-colors",
-								onRowClick && "cursor-pointer",
-							)}
+							className={cn(onRowClick && "cursor-pointer")}
 							onClick={() => onRowClick?.(row)}>
 							{columns.map((column) => (
-								<td key={String(column.key)} className="px-4 py-2 text-sm">
+								<TableCell key={String(column.key)}>
 									{column.render
 										? column.render(row[column.key], row)
 										: String(row[column.key] || "")}
-								</td>
+								</TableCell>
 							))}
-						</tr>
+						</TableRow>
 					))}
 					{filteredAndSortedData.length === 0 && (
-						<tr>
-							<td
-								colSpan={columns.length}
-								className="px-4 py-8 text-center text-muted-foreground">
+						<TableRow>
+							<TableCell colSpan={columns.length} className="h-24 text-center">
 								No results found
-							</td>
-						</tr>
+							</TableCell>
+						</TableRow>
 					)}
-				</tbody>
-			</table>
+				</TableBody>
+			</Table>
 		</div>
 	);
 }

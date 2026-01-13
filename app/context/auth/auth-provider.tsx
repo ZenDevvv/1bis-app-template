@@ -30,7 +30,6 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
 		} catch (error: any) {
 			console.error("Error fetching current user:", error);
 			setUser(null);
-			navigate("/login");
 		} finally {
 			setIsLoading(false);
 		}

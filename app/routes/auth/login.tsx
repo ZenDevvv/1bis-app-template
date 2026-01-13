@@ -26,12 +26,12 @@ export default function LoginPage() {
 		setIsLoading(true);
 
 		try {
-			const user = await login(identifier, password);
-			if (user) {
-				// Simulate a small delay for better UX if login is too instant
-				await new Promise((resolve) => setTimeout(resolve, 800));
-				navigate("/");
-			}
+			// Bypass authentication for demo
+			// const user = await login(identifier, password);
+
+			// Simulate a small delay for better UX
+			await new Promise((resolve) => setTimeout(resolve, 800));
+			navigate("/admin");
 		} catch (err) {
 			console.error("Login failed:", err);
 		} finally {
