@@ -9,10 +9,11 @@ const authRoutes: RouteConfig = [route("/login", "routes/auth/login.tsx")];
 export default [
 	index("routes/landing.tsx"),
 	layout("layouts/auth-layout.tsx", authRoutes),
-	layout("layouts/admin-layout.tsx", [
-		route("admin", "routes/admin/dashboard.tsx"),
-		route("admin/approvals", "routes/admin/approvals.tsx"),
-		route("admin/employees", "routes/admin/employees.tsx"),
-		route("admin/products", "routes/admin/products.tsx"),
-	]),
+	layout("layouts/admin-layout.tsx", prefix("admin", [
+		route("/", "routes/admin/dashboard.tsx"),
+		route("approvals", "routes/admin/approvals.tsx"),
+		route("employees", "routes/admin/employees.tsx"),
+		route("products", "routes/admin/products.tsx"),
+		route("vendors", "routes/admin/vendors.tsx"),
+	])),
 ] satisfies RouteConfig;

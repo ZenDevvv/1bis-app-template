@@ -9,6 +9,7 @@ import {
 	Menu,
 	X,
 	Package,
+	Store,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ export default function AdminLayout() {
 		{ href: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
 		{ href: "/admin/approvals", icon: FileCheck, label: "Approvals" },
 		{ href: "/admin/products", icon: Package, label: "Products" },
+		{ href: "/admin/vendors", icon: Store, label: "Vendors" },
 		{ href: "/admin/employees", icon: Users, label: "Employees" },
 		{ href: "/admin/reports", icon: PieChart, label: "Reports" },
 		{ href: "/admin/settings", icon: Settings, label: "Settings" },
