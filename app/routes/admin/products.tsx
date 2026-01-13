@@ -20,6 +20,12 @@ export default function AdminProductsPage() {
 	const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+	const [searchQuery, setSearchQuery] = useState("");
+
+	// Filter products based on search query
+	const filteredProducts = products.filter((product) =>
+		product.name.toLowerCase().includes(searchQuery.toLowerCase()),
+	);
 
 	const handleProductCreate = (newProduct: Product) => {
 		setProducts([newProduct, ...products]);
@@ -129,17 +135,25 @@ export default function AdminProductsPage() {
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
+					<div className="relative">
+						<Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+						<Input
+							type="search"
+							placeholder="Search products..."
+							className="pl-8 w-[200px] lg:w-[280px] bg-white border-input"
+							value={searchQuery}
+							onChange={(e) => setSearchQuery(e.target.value)}
+						/>
+					</div>
 					<Tabs
 						value={viewMode}
 						onValueChange={(v) => setViewMode(v as "grid" | "table")}>
-						<TabsList>
-							<TabsTrigger value="grid">
-								<LayoutGrid className="h-4 w-4 mr-2" />
-								Grid
+						<TabsList className="border border-input">
+							<TabsTrigger value="grid" className="px-3">
+								<LayoutGrid className="h-4 w-4" />
 							</TabsTrigger>
-							<TabsTrigger value="table">
-								<List className="h-4 w-4 mr-2" />
-								Table
+							<TabsTrigger value="table" className="px-3">
+								<List className="h-4 w-4" />
 							</TabsTrigger>
 						</TabsList>
 					</Tabs>
@@ -157,24 +171,11 @@ export default function AdminProductsPage() {
 			/>
 
 			<div className="space-y-4">
-				{/* 
-					Note: The DataTable has its own built-in search/filter. 
-					For Grid view, we arguably need separate controls or shared controls.
-					For now, DataTable handles its own state. 
-					If we want shared state, we'd lift search/filter state up.
-					Given the scope, I will rely on DataTable for Table View 
-					and maybe just show all in Grid View or add basic search 
-					if I had time, but "DataTable" implies it encapsulates that logic.
-					
-					However, to make Grid view useful with many products, we might want search.
-					For this refactor, I'll stick to displaying the list.
-				*/}
-
 				{viewMode === "grid" ? (
-					<ProductGrid products={products} />
+					<ProductGrid products={filteredProducts} />
 				) : (
 					<div className="rounded-md border bg-card">
-						<DataTable columns={columns} data={products} />
+						<DataTable columns={columns} data={filteredProducts} />
 					</div>
 				)}
 			</div>

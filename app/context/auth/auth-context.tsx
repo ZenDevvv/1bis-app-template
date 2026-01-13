@@ -1,11 +1,12 @@
 import { createContext } from "react";
 import type { UserWithRelation } from "~/zod/user.zod";
+import type { loginResponse } from "~/types/auth";
 
 export interface AuthContextType {
 	user: UserWithRelation | null;
 	isLoading: boolean;
 	error: string | null;
-	login: (email: string, password: string) => Promise<UserWithRelation>;
+	login: (identifier: string, password: string) => Promise<loginResponse>;
 	logout: () => Promise<void>;
 	getCurrentUser: () => Promise<void>;
 	clearError: () => void;
