@@ -37,7 +37,7 @@ export interface DataTableColumn<T> {
 	filterOptions?: ColumnFilter[];
 	searchable?: boolean;
 	render?: (value: T[keyof T], row: T) => React.ReactNode;
-	className?: string; // Added for alignment support
+	className?: string;
 }
 
 export interface DataTableProps<T> {
@@ -52,6 +52,61 @@ interface ColumnState {
 	selectedFilters: string[];
 }
 
+// Helper: Parse filter param into a Map
+function parseFilterParam(filterParam: string): Map<string, string[]> {
+	const filterMap = new Map<string, string[]>();
+	filterParam
+		.split(",")
+		.filter((p) => p.includes(":"))
+		.forEach((pair) => {
+			const [key, val] = pair.split(":", 2);
+			if (key && val) {
+				if (!filterMap.has(key)) filterMap.set(key, []);
+				filterMap.get(key)!.push(val);
+			}
+		});
+	return filterMap;
+}
+
+// Helper: Get selected filters for a column from URL params
+function getSelectedFiltersForColumn<T>(
+	col: DataTableColumn<T>,
+	filterMap: Map<string, string[]>,
+): string[] {
+	const colKey = String(col.key);
+	if (!col.filterOptions) return filterMap.get(colKey) || [];
+
+	return col.filterOptions
+		.filter((option) => {
+			const filterKey = option.key || colKey;
+			return filterMap.get(filterKey)?.includes(option.value);
+		})
+		.map((option) => option.value);
+}
+
+// Helper: Build column states from URL params
+function buildColumnStates<T>(
+	columns: DataTableColumn<T>[],
+	searchParams: URLSearchParams,
+): Record<string, ColumnState> {
+	const sortKey = searchParams.get("sort");
+	const order = searchParams.get("order");
+	const filterMap = parseFilterParam(searchParams.get("filter") || "");
+
+	const states: Record<string, ColumnState> = {};
+	columns.forEach((col) => {
+		const key = String(col.key);
+		states[key] = {
+			sortDirection:
+				sortKey === key && (order === "asc" || order === "desc")
+					? (order as SortDirection)
+					: null,
+			selectedFilters: getSelectedFiltersForColumn(col, filterMap),
+		};
+	});
+	return states;
+}
+
 export function DataTable<T extends Record<string, any>>({
 	columns,
 	data,
@@ -61,114 +116,28 @@ export function DataTable<T extends Record<string, any>>({
 	const [searchParams, setSearchParams] = useSearchParams();
 	const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 	const [searchQuery, setSearchQuery] = useState(() => searchParams.get("search") || "");
-
-	// Helper function to extract selected filters for a column from URL params
-	const getSelectedFiltersForColumn = (
-		col: DataTableColumn<T>,
-		filterMap: Map<string, string[]>,
-	): string[] => {
-		const colKey = String(col.key);
-		const selectedFilters: string[] = [];
-
-		// Check if column has filter options with custom keys
-		if (col.filterOptions) {
-			col.filterOptions.forEach((option) => {
-				const filterKey = option.key || colKey;
-				const valuesForKey = filterMap.get(filterKey) || [];
-				if (valuesForKey.includes(option.value)) {
-					selectedFilters.push(option.value);
-				}
-			});
-		} else {
-			// No filter options, just use the column key
-			return filterMap.get(colKey) || [];
-		}
-
-		return selectedFilters;
-	};
-
-	const [columnStates, setColumnStates] = useState<Record<string, ColumnState>>(() => {
-		const initialState: Record<string, ColumnState> = {};
-		const sortKeyParam = searchParams.get("sort");
-		const orderParam = searchParams.get("order");
-		const filterParam = searchParams.get("filter") || "";
-		const filterPairs = filterParam.split(",").filter((p) => p.includes(":"));
-		const filterMap = new Map<string, string[]>();
-		filterPairs.forEach((pair) => {
-			const parts = pair.split(":", 2);
-			if (parts.length === 2) {
-				const [key, val] = parts;
-				if (!filterMap.has(key)) {
-					filterMap.set(key, []);
-				}
-				filterMap.get(key)!.push(val);
-			}
-		});
-		columns.forEach((col) => {
-			const key = String(col.key);
-			const sortDirection: SortDirection =
-				sortKeyParam === key && (orderParam === "asc" || orderParam === "desc")
-					? (orderParam as SortDirection)
-					: null;
-			initialState[key] = {
-				sortDirection,
-				selectedFilters: getSelectedFiltersForColumn(col, filterMap),
-			};
-		});
-		return initialState;
-	});
+	const [columnStates, setColumnStates] = useState(() =>
+		buildColumnStates(columns, searchParams),
+	);
 
 	useEffect(() => {
 		return () => {
-			if (timeoutRef.current) {
-				clearTimeout(timeoutRef.current);
-			}
+			if (timeoutRef.current) clearTimeout(timeoutRef.current);
 		};
 	}, []);
 
 	useEffect(() => {
-		const newSearchQuery = searchParams.get("search") || "";
-		setSearchQuery(newSearchQuery);
-		const sortKeyParam = searchParams.get("sort");
-		const orderParam = searchParams.get("order");
-		const filterParam = searchParams.get("filter") || "";
-		const filterPairs = filterParam.split(",").filter((p) => p.includes(":"));
-		const filterMap = new Map<string, string[]>();
-		filterPairs.forEach((pair) => {
-			const parts = pair.split(":", 2);
-			if (parts.length === 2) {
-				const [key, val] = parts;
-				if (!filterMap.has(key)) {
-					filterMap.set(key, []);
-				}
-				filterMap.get(key)!.push(val);
-			}
-		});
-		setColumnStates((prev) => {
-			const newState: Record<string, ColumnState> = {};
-			columns.forEach((col) => {
-				const key = String(col.key);
-				const sortDir: SortDirection =
-					sortKeyParam === key && (orderParam === "asc" || orderParam === "desc")
-						? (orderParam as SortDirection)
-						: null;
-				newState[key] = {
-					...prev[key],
-					sortDirection: sortDir,
-					selectedFilters: getSelectedFiltersForColumn(col, filterMap),
-				};
-			});
-			return newState;
-		});
+		setSearchQuery(searchParams.get("search") || "");
+		setColumnStates(buildColumnStates(columns, searchParams));
 	}, [searchParams, columns]);
 
 	const handleSortClick = (columnKey: string, direction: "asc" | "desc") => {
 		setColumnStates((prev) => {
 			const newState = { ...prev };
 			Object.keys(newState).forEach((key) => {
-				newState[key].sortDirection = null;
+				newState[key] = { ...newState[key], sortDirection: null };
 			});
-			newState[columnKey].sortDirection = direction;
+			newState[columnKey] = { ...newState[columnKey], sortDirection: direction };
 			return newState;
 		});
 		setSearchParams((prev) => {
@@ -181,37 +150,39 @@ export function DataTable<T extends Record<string, any>>({
 
 	const handleFilterChange = (columnKey: string, value: string, checked: boolean) => {
 		setColumnStates((prev) => {
-			const newState = { ...prev };
-			const currentFilters = newState[columnKey].selectedFilters;
-			let newFilters: string[];
-			if (checked) {
-				newFilters = currentFilters.includes(value)
+			const currentFilters = prev[columnKey].selectedFilters;
+			const newFilters = checked
+				? currentFilters.includes(value)
 					? currentFilters
-					: [...currentFilters, value];
-			} else {
-				newFilters = currentFilters.filter((v) => v !== value);
-			}
-			newState[columnKey].selectedFilters = newFilters;
+					: [...currentFilters, value]
+				: currentFilters.filter((v) => v !== value);
+
+			const newState = {
+				...prev,
+				[columnKey]: { ...prev[columnKey], selectedFilters: newFilters },
+			};
+
+			// Build filter param string
 			const filterParts: string[] = [];
 			columns.forEach((col) => {
 				const colKey = String(col.key);
 				newState[colKey].selectedFilters.forEach((v) => {
-					// Find the filter option to check if it has a custom key
 					const filterOption = col.filterOptions?.find((opt) => opt.value === v);
 					const filterKey = filterOption?.key || colKey;
 					filterParts.push(`${filterKey}:${v}`);
 				});
 			});
-			const newFilterValue = filterParts.length > 0 ? filterParts.join(",") : null;
+
 			setSearchParams((currentParams) => {
 				const newParams = new URLSearchParams(currentParams);
-				if (newFilterValue) {
-					newParams.set("filter", newFilterValue);
+				if (filterParts.length > 0) {
+					newParams.set("filter", filterParts.join(","));
 				} else {
 					newParams.delete("filter");
 				}
 				return newParams;
 			});
+
 			return newState;
 		});
 	};
@@ -224,18 +195,14 @@ export function DataTable<T extends Record<string, any>>({
 		setColumnStates((prev) => {
 			const newState = { ...prev };
 			Object.keys(newState).forEach((key) => {
-				newState[key].sortDirection = null;
-				newState[key].selectedFilters = [];
+				newState[key] = { sortDirection: null, selectedFilters: [] };
 			});
 			return newState;
 		});
 		setSearchQuery("");
 		setSearchParams((prev) => {
 			const newParams = new URLSearchParams(prev);
-			newParams.delete("sort");
-			newParams.delete("order");
-			newParams.delete("search");
-			newParams.delete("filter");
+			["sort", "order", "search", "filter"].forEach((key) => newParams.delete(key));
 			return newParams;
 		});
 	};
@@ -244,9 +211,7 @@ export function DataTable<T extends Record<string, any>>({
 		const value = e.target.value;
 		setSearchQuery(value);
 
-		if (timeoutRef.current) {
-			clearTimeout(timeoutRef.current);
-		}
+		if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
 		timeoutRef.current = setTimeout(() => {
 			setSearchParams((prev) => {
@@ -261,25 +226,20 @@ export function DataTable<T extends Record<string, any>>({
 		}, 500);
 	};
 
-	const filteredAndSortedData = data;
-
 	return (
-		<div className={cn("rounded-md border bg-card", className)}>
+		<div className={cn("rounded-md border-none bg-card", className)}>
 			<Table>
 				<TableHeader>
 					<TableRow>
 						{columns.map((column) => {
 							const state = columnStates[String(column.key)];
-							const hasActiveSortOrFilter =
-								state?.sortDirection !== null || state?.selectedFilters.length > 0;
-							const hasActiveSearch = !!searchQuery;
+							const hasFilters =
+								column.filterable && (column.filterOptions?.length ?? 0) > 0;
+							const hasFeatures = column.sortable || column.searchable || hasFilters;
 							const hasActiveState =
-								hasActiveSortOrFilter || (column.searchable && hasActiveSearch);
-
-							const hasFeatures =
-								column.sortable ||
-								column.searchable ||
-								(column.filterable && (column.filterOptions?.length ?? 0));
+								state?.sortDirection !== null ||
+								state?.selectedFilters.length > 0 ||
+								(column.searchable && !!searchQuery);
 
 							if (!hasFeatures) {
 								return (
@@ -307,13 +267,17 @@ export function DataTable<T extends Record<string, any>>({
 													{column.label}
 												</span>
 												<Funnel
-													className={`h-3 w-3 hidden group-hover:flex absolute right-2 ${hasActiveState && "text-primary flex"}`}
+													className={cn(
+														"h-3 w-3 absolute right-2 hidden group-hover:flex",
+														hasActiveState && "text-primary flex",
+													)}
 												/>
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent
 											align="start"
 											className="w-56 bg-popover">
+											{/* Sort Options */}
 											{column.sortable && (
 												<>
 													<DropdownMenuItem
@@ -360,98 +324,84 @@ export function DataTable<T extends Record<string, any>>({
 													</DropdownMenuItem>
 												</>
 											)}
-											{column.sortable &&
-												(column.searchable ||
-													(column.filterable &&
-														(column.filterOptions?.length ?? 0) >
-															0)) && <DropdownMenuSeparator />}
 
+											{column.sortable &&
+												(column.searchable || hasFilters) && (
+													<DropdownMenuSeparator />
+												)}
+
+											{/* Search Input */}
 											{column.searchable && (
-												<>
-													<div className="p-2">
-														<div className="relative">
-															<SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-															<Input
-																placeholder={`Search ${column.label.toLowerCase()}...`}
-																value={searchQuery}
-																className="pl-8 h-9 bg-background"
-																onChange={handleSearchChange}
-																onClick={(e) => e.stopPropagation()}
-															/>
-														</div>
+												<div className="p-2">
+													<div className="relative">
+														<SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+														<Input
+															placeholder={`Search ${column.label.toLowerCase()}...`}
+															value={searchQuery}
+															className="pl-8 h-9 bg-background"
+															onChange={handleSearchChange}
+															onClick={(e) => e.stopPropagation()}
+														/>
 													</div>
-												</>
+												</div>
 											)}
 
-											{column.searchable &&
-												column.filterable &&
-												(column.filterOptions?.length ?? 0) && (
-													<DropdownMenuSeparator />
-												)}
+											{column.searchable && hasFilters && (
+												<DropdownMenuSeparator />
+											)}
 
-											{column.filterable &&
-												column.filterOptions &&
-												column.filterOptions.length > 0 && (
-													<>
-														<div className="p-2 max-h-48 overflow-y-auto">
-															<div className="text-xs font-medium text-muted-foreground mb-2 px-2">
-																Filter Options
-															</div>
-															{column.filterOptions.map((option) => {
-																const checked =
-																	state?.selectedFilters.includes(
+											{/* Filter Options */}
+											{hasFilters && (
+												<div className="p-2 max-h-48 overflow-y-auto">
+													<div className="text-xs font-medium text-muted-foreground mb-2 px-2">
+														Filter Options
+													</div>
+													{column.filterOptions!.map((option) => {
+														const checked =
+															state?.selectedFilters.includes(
+																option.value,
+															) || false;
+														return (
+															<div
+																key={option.value}
+																className="flex items-center space-x-2 px-2 py-1.5 hover:bg-accent rounded-sm cursor-pointer"
+																onClick={() =>
+																	handleFilterChange(
+																		String(column.key),
 																		option.value,
-																	) || false;
-																return (
-																	<div
-																		key={option.value}
-																		className="flex items-center space-x-2 px-2 py-1.5 hover:bg-accent rounded-sm cursor-pointer"
-																		onClick={() =>
-																			handleFilterChange(
-																				String(column.key),
-																				option.value,
-																				!checked,
-																			)
-																		}>
-																		<Checkbox
-																			checked={checked}
-																			onCheckedChange={(
-																				checked,
-																			) =>
-																				handleFilterChange(
-																					String(
-																						column.key,
-																					),
-																					option.value,
-																					!!checked,
-																				)
-																			}
-																		/>
-																		<span className="text-sm">
-																			{option.label}
-																		</span>
-																	</div>
-																);
-															})}
-														</div>
-													</>
-												)}
+																		!checked,
+																	)
+																}>
+																<Checkbox
+																	checked={checked}
+																	onCheckedChange={(checked) =>
+																		handleFilterChange(
+																			String(column.key),
+																			option.value,
+																			!!checked,
+																		)
+																	}
+																/>
+																<span className="text-sm">
+																	{option.label}
+																</span>
+															</div>
+														);
+													})}
+												</div>
+											)}
 
-											{hasActiveState &&
-												(column.sortable ||
-													column.searchable ||
-													(column.filterable &&
-														(column.filterOptions?.length ?? 0))) && (
-													<DropdownMenuSeparator />
-												)}
-
+											{/* Clear Filters */}
 											{hasActiveState && (
-												<DropdownMenuItem
-													className="cursor-pointer text-destructive focus:text-destructive"
-													onClick={handleClearFilters}>
-													<XIcon className="mr-2 h-4 w-4" />
-													Clear Filters
-												</DropdownMenuItem>
+												<>
+													<DropdownMenuSeparator />
+													<DropdownMenuItem
+														className="cursor-pointer text-destructive focus:text-destructive"
+														onClick={handleClearFilters}>
+														<XIcon className="mr-2 h-4 w-4" />
+														Clear Filters
+													</DropdownMenuItem>
+												</>
 											)}
 										</DropdownMenuContent>
 									</DropdownMenu>
@@ -461,26 +411,27 @@ export function DataTable<T extends Record<string, any>>({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{filteredAndSortedData.map((row, rowIndex) => (
-						<TableRow
-							key={rowIndex}
-							className={cn(onRowClick && "cursor-pointer")}
-							onClick={() => onRowClick?.(row)}>
-							{columns.map((column) => (
-								<TableCell key={String(column.key)}>
-									{column.render
-										? column.render(row[column.key], row)
-										: String(row[column.key] || "")}
-								</TableCell>
-							))}
-						</TableRow>
-					))}
-					{filteredAndSortedData.length === 0 && (
+					{data.length === 0 ? (
 						<TableRow>
 							<TableCell colSpan={columns.length} className="h-24 text-center">
 								No results found
 							</TableCell>
 						</TableRow>
+					) : (
+						data.map((row, rowIndex) => (
+							<TableRow
+								key={rowIndex}
+								className={cn(onRowClick && "cursor-pointer")}
+								onClick={() => onRowClick?.(row)}>
+								{columns.map((column) => (
+									<TableCell key={String(column.key)}>
+										{column.render
+											? column.render(row[column.key], row)
+											: String(row[column.key] || "")}
+									</TableCell>
+								))}
+							</TableRow>
+						))
 					)}
 				</TableBody>
 			</Table>
