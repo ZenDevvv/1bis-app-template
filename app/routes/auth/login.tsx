@@ -50,7 +50,7 @@ export default function LoginPage() {
 							</div>
 						</div>
 						<h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-							Welcome back
+							Welcome back!
 						</h1>
 						<p className="text-balance text-muted-foreground dark:text-gray-400">
 							Enter your credentials to access the portal
